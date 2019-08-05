@@ -1324,25 +1324,9 @@ class UMAP(BaseEstimator):
         ):
             raise ValueError("n_epochs must be a positive integer " "larger than 10")
 
-    def fit(self, X, y=None):
-        """Fit X into an embedded space.
+    def _build_graph(self, X, y=None):
 
-        Optionally use y for supervised dimension reduction.
-
-        Parameters
-        ----------
-        X : array, shape (n_samples, n_features) or (n_samples, n_samples)
-            If the metric is 'precomputed' X must be a square distance
-            matrix. Otherwise it contains a sample per row. If the method
-            is 'exact', X may be a sparse matrix of type 'csr', 'csc'
-            or 'coo'.
-
-        y : array, shape (n_samples)
-            A target array for supervised dimension reduction. How this is
-            handled is determined by parameters UMAP was instantiated with.
-            The relevant attributes are ``target_metric`` and
-            ``target_metric_kwds``.
-        """
+        random_state = check_random_state(self.random_state)
 
         X = check_array(X, dtype=np.float32, accept_sparse="csr")
         self._raw_data = X
@@ -1363,11 +1347,6 @@ class UMAP(BaseEstimator):
             self._target_metric_kwds = self.target_metric_kwds
         else:
             self._target_metric_kwds = {}
-
-        if isinstance(self.init, np.ndarray):
-            init = check_array(self.init, dtype=np.float32, accept_sparse=False)
-        else:
-            init = self.init
 
         self._initial_alpha = self.learning_rate
 
@@ -1398,8 +1377,6 @@ class UMAP(BaseEstimator):
             self._sparse_data = True
         else:
             self._sparse_data = False
-
-        random_state = check_random_state(self.random_state)
 
         if self.verbose:
             print("Construct fuzzy simplicial set")
@@ -1547,6 +1524,34 @@ class UMAP(BaseEstimator):
                 )
                 self.graph_ = reset_local_connectivity(self.graph_)
 
+    def fit(self, X, y=None):
+        """Fit X into an embedded space.
+
+        Optionally use y for supervised dimension reduction.
+
+        Parameters
+        ----------
+        X : array, shape (n_samples, n_features) or (n_samples, n_samples)
+            If the metric is 'precomputed' X must be a square distance
+            matrix. Otherwise it contains a sample per row. If the method
+            is 'exact', X may be a sparse matrix of type 'csr', 'csc'
+            or 'coo'.
+
+        y : array, shape (n_samples)
+            A target array for supervised dimension reduction. How this is
+            handled is determined by parameters UMAP was instantiated with.
+            The relevant attributes are ``target_metric`` and
+            ``target_metric_kwds``.
+        """
+
+        if not hasattr(self, 'graph_'):
+            self._build_graph(X, y)
+
+        if isinstance(self.init, np.ndarray):
+            init = check_array(self.init, dtype=np.float32, accept_sparse=False)
+        else:
+            init = self.init
+
         if self.n_epochs is None:
             n_epochs = 0
         else:
@@ -1554,6 +1559,8 @@ class UMAP(BaseEstimator):
 
         if self.verbose:
             print(ts(), "Construct embedding")
+
+        random_state = check_random_state(self.random_state)
 
         self.embedding_ = simplicial_set_embedding(
             self._raw_data,
